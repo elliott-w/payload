@@ -65,8 +65,30 @@ export const buildComplexQuery = async ({
               queryParams.ExpressionAttributeValues[valueName] = value;
 
               switch (operator) {
+                case 'all':
+                  if (Array.isArray(value)) {
+                    const allConditions = value.map((v, i) => {
+                      const vName = `:v${valueIndex + i}`;
+                      queryParams.ExpressionAttributeValues[vName] = v;
+                      return `contains(${fieldName}, ${vName})`;
+                    });
+                    conditions.push(`(${allConditions.join(' AND ')})`);
+                    valueIndex += value.length;
+                  }
+                  break;
                 case 'contains':
-                  conditions.push(`contains(${fieldName}, ${valueName})`);
+                  if (Array.isArray(value)) {
+                    // Handle array containment
+                    const containsConditions = value.map((v, i) => {
+                      const vName = `:v${valueIndex + i}`;
+                      queryParams.ExpressionAttributeValues[vName] = v;
+                      return `contains(${fieldName}, ${vName})`;
+                    });
+                    conditions.push(`(${containsConditions.join(' AND ')})`);
+                    valueIndex += value.length;
+                  } else {
+                    conditions.push(`contains(${fieldName}, ${valueName})`);
+                  }
                   break;
                 case 'equals':
                   conditions.push(`${fieldName} = ${valueName}`);
@@ -90,11 +112,22 @@ export const buildComplexQuery = async ({
                     valueIndex += value.length;
                   }
                   break;
+                case 'intersects':
+                  // For geospatial queries, we'll need to implement this differently
+                  // as DynamoDB doesn't have native geospatial support
+                  break;
                 case 'less_than':
                   conditions.push(`${fieldName} < ${valueName}`);
                   break;
                 case 'less_than_equal':
                   conditions.push(`${fieldName} <= ${valueName}`);
+                  break;
+                case 'like':
+                  conditions.push(`contains(${fieldName}, ${valueName})`);
+                  break;
+                case 'near':
+                  // For geospatial queries, we'll need to implement this differently
+                  // as DynamoDB doesn't have native geospatial support
                   break;
                 case 'not_equals':
                   conditions.push(`${fieldName} <> ${valueName}`);
@@ -111,6 +144,13 @@ export const buildComplexQuery = async ({
                     });
                     valueIndex += value.length;
                   }
+                  break;
+                case 'not_like':
+                  conditions.push(`not contains(${fieldName}, ${valueName})`);
+                  break;
+                case 'within':
+                  // For geospatial queries, we'll need to implement this differently
+                  // as DynamoDB doesn't have native geospatial support
                   break;
               }
               valueIndex++;
@@ -125,19 +165,30 @@ export const buildComplexQuery = async ({
               queryParams.ExpressionAttributeValues[valueName] = value;
 
               switch (operator) {
-                case 'begins_with':
-                  conditions.push(`begins_with(${fieldName}, ${valueName})`);
-                  break;
-                case 'between':
-                  if (Array.isArray(value) && value.length === 2) {
-                    const valueName2 = `:v${valueIndex + 1}`;
-                    conditions.push(`${fieldName} BETWEEN ${valueName} AND ${valueName2}`);
-                    queryParams.ExpressionAttributeValues[valueName2] = value[1];
-                    valueIndex++;
+                case 'all':
+                  if (Array.isArray(value)) {
+                    const allConditions = value.map((v, i) => {
+                      const vName = `:v${valueIndex + i}`;
+                      queryParams.ExpressionAttributeValues[vName] = v;
+                      return `contains(${fieldName}, ${vName})`;
+                    });
+                    conditions.push(`(${allConditions.join(' AND ')})`);
+                    valueIndex += value.length;
                   }
                   break;
                 case 'contains':
-                  conditions.push(`contains(${fieldName}, ${valueName})`);
+                  if (Array.isArray(value)) {
+                    // Handle array containment
+                    const containsConditions = value.map((v, i) => {
+                      const vName = `:v${valueIndex + i}`;
+                      queryParams.ExpressionAttributeValues[vName] = v;
+                      return `contains(${fieldName}, ${vName})`;
+                    });
+                    conditions.push(`(${containsConditions.join(' AND ')})`);
+                    valueIndex += value.length;
+                  } else {
+                    conditions.push(`contains(${fieldName}, ${valueName})`);
+                  }
                   break;
                 case 'equals':
                   conditions.push(`${fieldName} = ${valueName}`);
@@ -161,11 +212,22 @@ export const buildComplexQuery = async ({
                     valueIndex += value.length;
                   }
                   break;
+                case 'intersects':
+                  // For geospatial queries, we'll need to implement this differently
+                  // as DynamoDB doesn't have native geospatial support
+                  break;
                 case 'less_than':
                   conditions.push(`${fieldName} < ${valueName}`);
                   break;
                 case 'less_than_equal':
                   conditions.push(`${fieldName} <= ${valueName}`);
+                  break;
+                case 'like':
+                  conditions.push(`contains(${fieldName}, ${valueName})`);
+                  break;
+                case 'near':
+                  // For geospatial queries, we'll need to implement this differently
+                  // as DynamoDB doesn't have native geospatial support
                   break;
                 case 'not_equals':
                   conditions.push(`${fieldName} <> ${valueName}`);
@@ -182,6 +244,13 @@ export const buildComplexQuery = async ({
                     });
                     valueIndex += value.length;
                   }
+                  break;
+                case 'not_like':
+                  conditions.push(`not contains(${fieldName}, ${valueName})`);
+                  break;
+                case 'within':
+                  // For geospatial queries, we'll need to implement this differently
+                  // as DynamoDB doesn't have native geospatial support
                   break;
               }
               valueIndex++;

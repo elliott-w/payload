@@ -207,27 +207,36 @@
 
 ### Query Support
 
-- [ ] Implement basic query filtering:
-  - Equality conditions
-  - Comparison operators
-  - Logical operators
-  - Complex conditions
-  - Client-side query processing
-- [ ] Add support for sorting:
-  - Single field sorting
-  - Multiple field sorting
-  - Index optimization
-  - Sort key utilization
-- [ ] Implement pagination:
-  - Limit/offset support
-  - Cursor-based pagination
-  - Performance optimization
-  - LastEvaluatedKey handling
-- [ ] Add support for field selection:
-  - Projection expressions
-  - Nested field selection
-  - Performance considerations
-  - Cost optimization
+- [x] Implement basic query filtering:
+  - [x] Equality conditions
+  - [x] Comparison operators
+  - [x] Logical operators
+  - [x] Complex conditions
+  - [x] Client-side query processing
+- [x] Add support for sorting:
+  - [x] Single field sorting
+  - [x] Multiple field sorting
+  - [x] Index optimization
+  - [x] Sort key utilization
+- [x] Implement pagination:
+  - [x] Limit/offset support
+  - [x] Cursor-based pagination
+  - [x] Performance optimization
+  - [x] LastEvaluatedKey handling
+- [x] Add support for field selection:
+  - [x] Projection expressions
+  - [x] Nested field selection
+  - [x] Performance considerations
+  - [x] Cost optimization
+- [ ] Enhance complex query support:
+  - [ ] Add support for nested arrays
+  - [ ] Add support for complex relationships
+  - [ ] Add support for text search (using DynamoDB Streams or Elasticsearch)
+  - [ ] Add support for localization at the application level
+  - [ ] Add support for custom ID types
+  - [ ] Add support for complex data types
+  - [ ] Add support for conditional expressions
+  - [ ] Add support for batch operations
 
 ## Phase 3: Advanced Features
 
