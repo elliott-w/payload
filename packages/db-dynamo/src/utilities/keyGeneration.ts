@@ -1,4 +1,4 @@
-import { KEY_NAMES } from './constants';
+import { KEY_NAMES } from './constants.js';
 
 export const generateCollectionKeys = (collectionSlug: string, id: string) => ({
   [KEY_NAMES.GSI1_PARTITION_KEY]: `DOCUMENT#${id}`,

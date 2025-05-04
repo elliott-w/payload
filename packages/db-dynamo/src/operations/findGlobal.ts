@@ -1,4 +1,4 @@
-import type { FindGlobalArgs } from 'payload/dist/database/types';
+import type { FindGlobalArgs } from 'payload';
 
 import { GetCommand } from '@aws-sdk/lib-dynamodb';
 
@@ -6,7 +6,9 @@ import type { GlobalWithSlug } from '../types.js';
 
 import { formatError, generateGlobalKeys, TABLE_NAMES } from '../utilities/index.js';
 
-export const findGlobal = async <T>(args: { client: any } & FindGlobalArgs): Promise<null | T> => {
+export const findGlobal = async <T>(
+  args: { client: any; global: GlobalWithSlug } & FindGlobalArgs
+): Promise<null | T> => {
   const { client, global } = args;
 
   try {

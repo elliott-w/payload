@@ -1,4 +1,4 @@
-import type { CreateGlobalArgs } from 'payload/dist/database/types';
+import type { CreateGlobalArgs } from 'payload';
 
 import { PutCommand } from '@aws-sdk/lib-dynamodb';
 
@@ -6,7 +6,9 @@ import type { GlobalWithSlug } from '../types.js';
 
 import { formatError, generateGlobalKeys, TABLE_NAMES } from '../utilities/index.js';
 
-export const createGlobal = async <T>(args: { client: any } & CreateGlobalArgs): Promise<T> => {
+export const createGlobal = async <T>(
+  args: { client: any; global: GlobalWithSlug } & CreateGlobalArgs
+): Promise<T> => {
   const { client, data, global } = args;
   const globalWithSlug = global as GlobalWithSlug;
 

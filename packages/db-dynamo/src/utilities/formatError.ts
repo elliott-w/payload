@@ -1,4 +1,4 @@
-import type { DynamoDBError } from '../types';
+import type { DynamoDBError } from '../types.js';
 
 export const formatError = (error: unknown): Error => {
   if (error instanceof Error) {

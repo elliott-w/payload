@@ -15,6 +15,7 @@ Create a DynamoDB adapter for Payload CMS that implements the BaseDatabaseAdapte
 - You are always allowed to mark/unmark tasks in the [IMPLEMENTATION_PLAN.md](mdc:packages/db-dynamo/IMPLEMENTATION_PLAN.md) as completed.
 - You can edit the steps in the [IMPLEMENTATION_PLAN.md](mdc:packages/db-dynamo/IMPLEMENTATION_PLAN.md) as you discover more information and the path to your goal becomes more clear. You should only edit the steps in the [IMPLEMENTATION_PLAN.md](mdc:packages/db-dynamo/IMPLEMENTATION_PLAN.md) when you think you have encountered a significant challenge or new information that requires changing course. Basically only edit the plan if you think it's quite important.
 - You can also edit the "Key Findings" at the bottom of the [IMPLEMENTATION_PLAN.md](mdc:packages/db-dynamo/IMPLEMENTATION_PLAN.md). You should only do this when you encounter an error or bug or new piece of information that has a significant impact on how you approach the project goal.
+- After every completed step, you should read all the files in the `packages/db-mongodb` folder and if you've drifted to far from how the mongodb adapter works, you should splice in steps in the implementation plan to ensure you get re-aligned.
 
 ## Project Structure
 
@@ -41,3 +42,4 @@ This project follows a monorepo structure with the following key directories:
 - Ensure all implementations follow Payload CMS's patterns and conventions
 - All relative file imports must have a .js suffix
 - Avoid the use of barrel (index.ts)
+- You should prefer to import all payload types from the root module, e.g. `import { Type } from 'payload'` rather than `import { Type } from 'payload/dist/database`.

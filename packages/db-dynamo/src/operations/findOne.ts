@@ -1,4 +1,4 @@
-import type { FindOneArgs } from 'payload/dist/database/types';
+import type { FindOneArgs } from 'payload';
 
 import { GetCommand } from '@aws-sdk/lib-dynamodb';
 
@@ -6,7 +6,9 @@ import type { CollectionWithSlug } from '../types.js';
 
 import { formatError, generateCollectionKeys, TABLE_NAMES } from '../utilities/index.js';
 
-export const findOne = async <T>(args: { client: any } & FindOneArgs): Promise<null | T> => {
+export const findOne = async <T>(
+  args: { client: any; collection: CollectionWithSlug; id: string } & FindOneArgs
+): Promise<null | T> => {
   const { id, client, collection } = args;
 
   try {

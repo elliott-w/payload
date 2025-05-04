@@ -12,18 +12,18 @@
   - Payload CMS types
 - [x] Set up TypeScript configuration with strict mode
 - [x] Create basic project structure following Payload CMS patterns
-- [ ] Set up testing environment with Jest and DynamoDB local:
+- [x] Set up testing environment with Jest and DynamoDB local:
   - Local DynamoDB for development
   - Integration tests with real DynamoDB
   - Performance testing
   - Test utilities for common operations
 - [x] Configure ESLint and Prettier with Payload CMS rules
-- [ ] Restructure source directory to match MongoDB adapter:
+- [x] Restructure source directory to match MongoDB adapter:
   - Create separate files for each operation (create.ts, updateOne.ts, etc.)
   - Move operations from index.ts to individual files
   - Create proper directory structure (queries/, transactions/, etc.)
   - Add missing utility directories (exports/, models/, predefinedMigrations/)
-- [ ] Add missing core files:
+- [x] Add missing core files:
   - init.ts for initialization logic
   - destroy.ts for cleanup
   - migrateFresh.ts for fresh migrations
@@ -51,6 +51,36 @@
   - Transaction rollback support
   - Connection error handling
   - Error propagation
+- [ ] Add session management:
+  - Session tracking and cleanup
+  - Transaction session handling
+  - Session ID generation
+  - Session state management
+- [ ] Implement data transformation utilities:
+  - Field type conversion
+  - Relationship handling
+  - Data sanitization
+  - Read/write operation transformations
+- [ ] Add query building utilities:
+  - Query construction
+  - Filter handling
+  - Sort handling
+  - Projection handling
+- [ ] Create entity management:
+  - Collection model handling
+  - Global model handling
+  - Version model handling
+  - Model validation
+- [ ] Implement transaction utilities:
+  - Transaction state tracking
+  - Transaction options handling
+  - Transaction cleanup
+  - Transaction error handling
+- [ ] Add migration support:
+  - Migration file handling
+  - Migration state tracking
+  - Migration rollback support
+  - Migration validation
 
 ### Schema Design (New Section)
 

@@ -1,5 +1,9 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 
+import { createTestTable, deleteTestTable } from './utils.js';
+
+export const TEST_TABLE_NAME = 'payload-test';
+
 // Configure DynamoDB client for testing
 export const testDynamoDBClient = new DynamoDBClient({
   credentials: {
@@ -12,9 +16,21 @@ export const testDynamoDBClient = new DynamoDBClient({
 
 // Add any global test setup here
 beforeAll(async () => {
-  // Add any setup that needs to run before all tests
+  // Create test table
+  await createTestTable(
+    TEST_TABLE_NAME,
+    [
+      { AttributeName: 'pk', KeyType: 'HASH' },
+      { AttributeName: 'sk', KeyType: 'RANGE' },
+    ],
+    [
+      { AttributeName: 'pk', AttributeType: 'S' },
+      { AttributeName: 'sk', AttributeType: 'S' },
+    ]
+  );
 });
 
 afterAll(async () => {
-  // Add any cleanup that needs to run after all tests
+  // Clean up test table
+  await deleteTestTable(TEST_TABLE_NAME);
 });

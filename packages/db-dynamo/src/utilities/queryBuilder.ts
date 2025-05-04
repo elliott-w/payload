@@ -1,4 +1,4 @@
-import { KEY_NAMES } from './constants';
+import { KEY_NAMES } from './constants.js';
 
 interface QueryBuilderOptions {
   expressionAttributeNames?: Record<string, string>;
@@ -25,11 +25,11 @@ export const buildQuery = (
   } = options;
 
   const keyConditionExpressions: string[] = ['#pk = :pk'];
-  const baseExpressionAttributeNames = {
+  const baseExpressionAttributeNames: Record<string, string> = {
     '#pk': indexName ? KEY_NAMES.GSI1_PARTITION_KEY : KEY_NAMES.PARTITION_KEY,
     ...expressionAttributeNames,
   };
-  const baseExpressionAttributeValues = {
+  const baseExpressionAttributeValues: Record<string, any> = {
     ':pk': partitionKey,
     ...expressionAttributeValues,
   };

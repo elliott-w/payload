@@ -1,4 +1,4 @@
-import { ATTRIBUTE_TYPES, INDEX_NAMES, KEY_NAMES } from './constants';
+import { ATTRIBUTE_TYPES, INDEX_NAMES, KEY_NAMES } from './constants.js';
 
 export const getBaseTableSchema = () => ({
   AttributeDefinitions: [

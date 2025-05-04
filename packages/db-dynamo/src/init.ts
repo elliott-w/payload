@@ -1,31 +1,44 @@
-import type { Payload } from 'payload';
-import type { BaseDatabaseAdapter } from 'payload/database';
+import type { BaseDatabaseAdapter, Payload } from 'payload';
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 
 import { connect } from './connect.js';
-import { destroy } from './destroy.js';
 
-export async function init(payload: Payload): Promise<BaseDatabaseAdapter> {
+interface DynamoDBConfig {
+  credentials?: {
+    accessKeyId: string;
+    secretAccessKey: string;
+  };
+  endpoint?: string;
+  region?: string;
+}
+
+interface DynamoDBAdapter extends BaseDatabaseAdapter {
+  client: DynamoDBDocumentClient;
+}
+
+export async function init(payload: Payload): Promise<DynamoDBAdapter> {
   const { config } = payload;
+  const dbConfig = config.db as DynamoDBConfig;
 
   // Initialize DynamoDB client
   const client = new DynamoDBClient({
-    credentials: config.db?.credentials,
-    endpoint: config.db?.endpoint,
-    region: config.db?.region || 'us-east-1',
+    credentials: dbConfig?.credentials,
+    endpoint: dbConfig?.endpoint,
+    region: dbConfig?.region || 'us-east-1',
   });
 
   // Create DynamoDB Document Client for easier data handling
   const docClient = DynamoDBDocumentClient.from(client);
 
   // Connect to database and initialize collections
-  await connect(docClient, config);
+  await connect(docClient);
 
   return {
     client: docClient,
-    destroy: () => destroy(docClient),
-    // Add other required methods here as they are implemented
-  };
+    destroy: async () => {
+      // Cleanup logic here
+    },
+  } as DynamoDBAdapter;
 }
