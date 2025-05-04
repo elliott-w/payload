@@ -1,0 +1,41 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Payload CMS DynamoDB Adapter Project
+
+## Project Goal
+
+Create a DynamoDB adapter for Payload CMS that implements the BaseDatabaseAdapter interface in @types.ts
+
+## Method
+
+- Execute the tasks in [IMPLEMENTATION_PLAN.md](mdc:packages/db-dynamo/IMPLEMENTATION_PLAN.md) step by step until they are all completed.
+- You are always allowed to mark/unmark tasks in the [IMPLEMENTATION_PLAN.md](mdc:packages/db-dynamo/IMPLEMENTATION_PLAN.md) as completed.
+- You can edit the steps in the [IMPLEMENTATION_PLAN.md](mdc:packages/db-dynamo/IMPLEMENTATION_PLAN.md) as you discover more information and the path to your goal becomes more clear. You should only edit the steps in the [IMPLEMENTATION_PLAN.md](mdc:packages/db-dynamo/IMPLEMENTATION_PLAN.md) when you think you have encountered a significant challenge or new information that requires changing course. Basically only edit the plan if you think it's quite important.
+- You can also edit the "Key Findings" at the bottom of the [IMPLEMENTATION_PLAN.md](mdc:packages/db-dynamo/IMPLEMENTATION_PLAN.md). You should only do this when you encounter an error or bug or new piece of information that has a significant impact on how you approach the project goal.
+
+## Project Structure
+
+This project follows a monorepo structure with the following key directories:
+
+- `packages/db-dynamo`: The main package directory for the DynamoDB adapter
+  - All new files and directories MUST be created within this directory
+  - This includes documentation, research plans, and any other project-related files
+  - The only exception is if explicitly instructed otherwise
+
+- `packages/db-mongodb`: Reference implementation for MongoDB adapter
+  - Use this as a reference for implementing the DynamoDB adapter
+  - Study its structure and patterns
+
+- `packages/payload`: Core Payload CMS package
+  - Reference for understanding required functionality
+
+## Important Notes
+
+- All new files and directories MUST be created within `packages/db-dynamo`
+- Follow the existing patterns from the MongoDB adapter while adapting them for DynamoDB's specific requirements
+- The MongoDB adapter serves as a reference but should not be copied directly
+- Pay special attention to DynamoDB's specific requirements and limitations
+- Ensure all implementations follow Payload CMS's patterns and conventions
