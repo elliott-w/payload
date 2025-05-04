@@ -173,7 +173,7 @@
     - Add support for array field queries
     - Add support for relationship queries
     - Add support for text search using DynamoDB's scan with filter expressions
-  - [ ] Add sort utilities:
+  - [x] Add sort utilities:
     - Implement proper sort parameter building
     - Add support for multiple field sorting
     - Add support for nested field sorting
@@ -188,13 +188,13 @@
     - Add support for one-to-one relationships
     - Add support for one-to-many relationships
     - Add support for many-to-many relationships
-- [ ] Implement update operations:
-  - `updateOne` and `updateMany`
-  - `updateGlobal`
-  - Partial updates
-  - Draft state management
-  - Conditional updates
-  - Optimistic locking for concurrent operations
+- [x] Implement update operations:
+  - [x] `updateOne` and `updateMany`
+  - [x] `updateGlobal`
+  - [ ] Partial updates
+  - [ ] Draft state management
+  - [ ] Conditional updates
+  - [ ] Optimistic locking for concurrent operations
 - [ ] Implement delete operations:
   - `deleteOne` and `deleteMany`
   - Conditional deletion
