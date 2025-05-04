@@ -1,44 +1,39 @@
-import type { Payload, SanitizedCollectionConfig } from 'payload';
+import type { SanitizedCollectionConfig, SanitizedGlobalConfig } from 'payload';
 
 interface BuildCollectionSchemaArgs {
-  collection: SanitizedCollectionConfig;
-  payload: Payload;
-  schemaOptions?: Record<string, unknown>;
+  config: SanitizedCollectionConfig | SanitizedGlobalConfig;
+  isVersion?: boolean;
 }
 
-export function buildCollectionSchema({
-  collection,
-  payload,
-  schemaOptions,
-}: BuildCollectionSchemaArgs): Record<string, unknown> {
-  // For DynamoDB, we'll create a schema that maps to DynamoDB's data model
-  // This includes defining the primary key structure and any secondary indexes
-  const schema: Record<string, unknown> = {
-    // Define the primary key structure
-    // In DynamoDB, we need a partition key and optionally a sort key
-    keySchema: [
-      {
-        AttributeName: 'id',
-        KeyType: 'HASH', // Partition key
-      },
+export function buildCollectionSchema({ config, isVersion = false }: BuildCollectionSchemaArgs) {
+  // For now, return a basic schema structure
+  // This will be expanded to handle all field types and relationships
+  return {
+    AttributeDefinitions: [
+      { AttributeName: 'id', AttributeType: 'S' as const },
+      { AttributeName: 'createdAt', AttributeType: 'S' as const },
+      ...(isVersion ? [{ AttributeName: 'parent', AttributeType: 'S' as const }] : []),
     ],
-    // Define the attribute definitions
-    attributeDefinitions: [
-      {
-        AttributeName: 'id',
-        AttributeType: 'S', // String type
-      },
+    BillingMode: 'PAY_PER_REQUEST' as const,
+    GlobalSecondaryIndexes: [
+      ...(isVersion
+        ? [
+            {
+              IndexName: 'parent-index',
+              KeySchema: [
+                { AttributeName: 'parent', KeyType: 'HASH' as const },
+                { AttributeName: 'createdAt', KeyType: 'RANGE' as const },
+              ],
+              Projection: {
+                ProjectionType: 'ALL' as const,
+              },
+            },
+          ]
+        : []),
     ],
-    // Define any secondary indexes
-    globalSecondaryIndexes: [],
-    // Define the collection's fields
-    fields: collection.fields,
+    KeySchema: [
+      { AttributeName: 'id', KeyType: 'HASH' as const },
+      { AttributeName: 'createdAt', KeyType: 'RANGE' as const },
+    ],
   };
-
-  // Add any schema options
-  if (schemaOptions) {
-    Object.assign(schema, schemaOptions);
-  }
-
-  return schema;
 }

@@ -1,3 +1,5 @@
+import type { FlattenedField, Where, WhereField } from 'payload';
+
 import { KEY_NAMES } from './constants.js';
 
 interface QueryBuilderOptions {
@@ -6,126 +8,291 @@ interface QueryBuilderOptions {
   filterExpression?: string;
   indexName?: string;
   limit?: number;
+  sort?: string | string[];
   startKey?: Record<string, any>;
 }
 
-export const buildQuery = (
-  tableName: string,
-  partitionKey: string,
-  sortKey?: string,
-  options: QueryBuilderOptions = {}
-) => {
-  const {
-    expressionAttributeNames = {},
-    expressionAttributeValues = {},
-    filterExpression,
-    indexName,
-    limit,
-    startKey,
-  } = options;
+interface BuildQueryArgs {
+  collectionSlug?: string;
+  fields: FlattenedField[];
+  globalSlug?: string;
+  locale?: string;
+  where: Where;
+}
 
-  const keyConditionExpressions: string[] = ['#pk = :pk'];
-  const baseExpressionAttributeNames: Record<string, string> = {
-    '#pk': indexName ? KEY_NAMES.GSI1_PARTITION_KEY : KEY_NAMES.PARTITION_KEY,
-    ...expressionAttributeNames,
-  };
-  const baseExpressionAttributeValues: Record<string, any> = {
-    ':pk': partitionKey,
-    ...expressionAttributeValues,
-  };
+interface QueryResult {
+  $and?: Array<Record<string, any>>;
+  $or?: Array<Record<string, any>>;
+  [key: string]: any;
+}
 
-  if (sortKey) {
-    keyConditionExpressions.push('#sk = :sk');
-    baseExpressionAttributeNames['#sk'] = indexName ? KEY_NAMES.GSI1_SORT_KEY : KEY_NAMES.SORT_KEY;
-    baseExpressionAttributeValues[':sk'] = sortKey;
-  }
-
-  return {
-    TableName: tableName,
-    ...(indexName && { IndexName: indexName }),
-    ExpressionAttributeNames: baseExpressionAttributeNames,
-    ExpressionAttributeValues: baseExpressionAttributeValues,
-    KeyConditionExpression: keyConditionExpressions.join(' AND '),
-    ...(filterExpression && { FilterExpression: filterExpression }),
-    ...(limit && { Limit: limit }),
-    ...(startKey && { ExclusiveStartKey: startKey }),
-  };
-};
-
-export const buildFilterExpression = (where: Record<string, any> = {}) => {
-  const expressionParts: string[] = [];
-  const expressionAttributeNames: Record<string, string> = {};
-  const expressionAttributeValues: Record<string, any> = {};
-  let valueCounter = 0;
-
-  Object.entries(where).forEach(([key, value]) => {
-    const attributeName = `#attr${valueCounter}`;
-    const attributeValue = `:val${valueCounter}`;
-
-    expressionAttributeNames[attributeName] = key;
-    expressionAttributeValues[attributeValue] = value;
-
-    if (value === null) {
-      expressionParts.push(`attribute_not_exists(${attributeName})`);
-    } else if (typeof value === 'object') {
-      // Handle operators like $eq, $gt, $lt, etc.
-      Object.entries(value).forEach(([operator, operatorValue]) => {
-        const operatorValueKey = `${attributeValue}_${operator}`;
-        expressionAttributeValues[operatorValueKey] = operatorValue;
-
-        switch (operator) {
-          case '$contains':
-            expressionParts.push(`contains(${attributeName}, ${operatorValueKey})`);
-            break;
-          case '$eq':
-            expressionParts.push(`${attributeName} = ${operatorValueKey}`);
-            break;
-          case '$exists':
-            if (operatorValue) {
-              expressionParts.push(`attribute_exists(${attributeName})`);
-            } else {
-              expressionParts.push(`attribute_not_exists(${attributeName})`);
-            }
-            break;
-          case '$gt':
-            expressionParts.push(`${attributeName} > ${operatorValueKey}`);
-            break;
-          case '$gte':
-            expressionParts.push(`${attributeName} >= ${operatorValueKey}`);
-            break;
-          case '$in':
-            if (Array.isArray(operatorValue)) {
-              expressionParts.push(
-                `${attributeName} IN (${operatorValue
-                  .map((_, i) => `${operatorValueKey}_${i}`)
-                  .join(', ')})`
-              );
-              operatorValue.forEach((val, i) => {
-                expressionAttributeValues[`${operatorValueKey}_${i}`] = val;
-              });
-            }
-            break;
-          case '$lt':
-            expressionParts.push(`${attributeName} < ${operatorValueKey}`);
-            break;
-          case '$lte':
-            expressionParts.push(`${attributeName} <= ${operatorValueKey}`);
-            break;
-          case '$ne':
-            expressionParts.push(`${attributeName} <> ${operatorValueKey}`);
-            break;
-        }
-      });
-    } else {
-      expressionParts.push(`${attributeName} = ${attributeValue}`);
-    }
-
-    valueCounter += 1;
+export const buildQuery = async ({
+  collectionSlug,
+  fields,
+  globalSlug,
+  locale,
+  where,
+}: BuildQueryArgs): Promise<QueryResult> => {
+  const result = await parseParams({
+    collectionSlug,
+    fields,
+    globalSlug,
+    locale,
+    parentIsLocalized: false,
+    where,
   });
 
-  return {
-    expressionAttributeNames,
-    expressionAttributeValues,
-    filterExpression: expressionParts.join(' AND '),
-  };
+  return result;
+};
+
+export const parseParams = async ({
+  collectionSlug,
+  fields,
+  globalSlug,
+  locale,
+  parentIsLocalized,
+  where,
+}: {
+  collectionSlug?: string;
+  fields: FlattenedField[];
+  globalSlug?: string;
+  locale?: string;
+  parentIsLocalized: boolean;
+  where: Where;
+}): Promise<QueryResult> => {
+  const result: QueryResult = {};
+
+  if (typeof where === 'object') {
+    for (const relationOrPath of Object.keys(where)) {
+      const condition = where[relationOrPath];
+      let conditionOperator: '$and' | '$or' | null = null;
+
+      if (relationOrPath.toLowerCase() === 'and') {
+        conditionOperator = '$and';
+      } else if (relationOrPath.toLowerCase() === 'or') {
+        conditionOperator = '$or';
+      }
+
+      if (Array.isArray(condition)) {
+        const builtConditions = await buildAndOrConditions({
+          collectionSlug,
+          fields,
+          globalSlug,
+          locale,
+          parentIsLocalized,
+          where: condition,
+        });
+
+        if (builtConditions.length > 0 && conditionOperator !== null) {
+          result[conditionOperator] = builtConditions;
+        }
+      } else {
+        const pathOperators = where[relationOrPath] as Record<string, unknown>;
+        if (typeof pathOperators === 'object') {
+          for (const operator of Object.keys(pathOperators)) {
+            const searchParam = await buildSearchParam({
+              collectionSlug,
+              fields,
+              globalSlug,
+              incomingPath: relationOrPath,
+              locale,
+              operator,
+              parentIsLocalized,
+              val: pathOperators[operator],
+            });
+
+            if (searchParam?.value && searchParam?.path) {
+              if (Object.keys(pathOperators).length > 1) {
+                if (!result.$and) {
+                  result.$and = [];
+                }
+                result.$and.push({
+                  [searchParam.path]: searchParam.value,
+                });
+              } else {
+                if (result[searchParam.path]) {
+                  if (!result.$and) {
+                    result.$and = [];
+                  }
+                  result.$and.push({ [searchParam.path]: result[searchParam.path] });
+                  result.$and.push({
+                    [searchParam.path]: searchParam.value,
+                  });
+                  delete result[searchParam.path];
+                } else {
+                  result[searchParam.path] = searchParam.value;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return result;
+};
+
+export const buildAndOrConditions = async ({
+  collectionSlug,
+  fields,
+  globalSlug,
+  locale,
+  parentIsLocalized,
+  where,
+}: {
+  collectionSlug?: string;
+  fields: FlattenedField[];
+  globalSlug?: string;
+  locale?: string;
+  parentIsLocalized: boolean;
+  where: Where[];
+}): Promise<Array<Record<string, any>>> => {
+  const completedConditions: Array<Record<string, any>> = [];
+
+  for (const condition of where) {
+    if (typeof condition === 'object') {
+      const result = await parseParams({
+        collectionSlug,
+        fields,
+        globalSlug,
+        locale,
+        parentIsLocalized,
+        where: condition,
+      });
+
+      if (Object.keys(result).length > 0) {
+        completedConditions.push(result);
+      }
+    }
+  }
+
+  return completedConditions;
+};
+
+export const buildSearchParam = async ({
+  collectionSlug,
+  fields,
+  globalSlug,
+  incomingPath,
+  locale,
+  operator,
+  parentIsLocalized,
+  val,
+}: {
+  collectionSlug?: string;
+  fields: FlattenedField[];
+  globalSlug?: string;
+  incomingPath: string;
+  locale?: string;
+  operator: string;
+  parentIsLocalized: boolean;
+  val: unknown;
+}): Promise<{ path: string; value: Record<string, any> } | undefined> => {
+  let sanitizedPath = incomingPath.replace(/__/g, '.');
+  if (sanitizedPath === 'id') {
+    sanitizedPath = '_id';
+  }
+
+  const field = fields.find((f) => f.name === sanitizedPath);
+  if (!field) {
+    return undefined;
+  }
+
+  let formattedValue = val;
+  const formattedOperator = operator;
+
+  // Handle different field types
+  switch (field.type) {
+    case 'checkbox':
+      if (typeof val === 'string') {
+        formattedValue = val.toLowerCase() === 'true';
+      }
+      break;
+    case 'date':
+      if (typeof val === 'string' && operator !== 'exists') {
+        formattedValue = new Date(val);
+      }
+      break;
+    case 'number':
+      if (typeof val === 'string' && operator !== 'exists') {
+        formattedValue = Number(val);
+      }
+      break;
+    case 'relationship':
+    case 'upload':
+      if (val === 'null') {
+        formattedValue = null;
+      }
+      break;
+  }
+
+  // Handle different operators
+  switch (operator) {
+    case 'equals':
+      return {
+        path: sanitizedPath,
+        value: { $eq: formattedValue },
+      };
+    case 'exists':
+      return {
+        path: sanitizedPath,
+        value: { $exists: formattedValue === true || formattedValue === 'true' },
+      };
+    case 'greater_than':
+      return {
+        path: sanitizedPath,
+        value: { $gt: formattedValue },
+      };
+    case 'greater_than_equal':
+      return {
+        path: sanitizedPath,
+        value: { $gte: formattedValue },
+      };
+    case 'in':
+      return {
+        path: sanitizedPath,
+        value: { $in: Array.isArray(formattedValue) ? formattedValue : [formattedValue] },
+      };
+    case 'less_than':
+      return {
+        path: sanitizedPath,
+        value: { $lt: formattedValue },
+      };
+    case 'less_than_equal':
+      return {
+        path: sanitizedPath,
+        value: { $lte: formattedValue },
+      };
+    case 'like':
+      return {
+        path: sanitizedPath,
+        value: {
+          $options: 'i',
+          $regex: String(formattedValue).replace(/[\\^$*+?.()|[\]{}]/g, '\\$&'),
+        },
+      };
+    case 'not_equals':
+      return {
+        path: sanitizedPath,
+        value: { $ne: formattedValue },
+      };
+    case 'not_in':
+      return {
+        path: sanitizedPath,
+        value: { $nin: Array.isArray(formattedValue) ? formattedValue : [formattedValue] },
+      };
+    case 'not_like':
+      return {
+        path: sanitizedPath,
+        value: {
+          $not: {
+            $options: 'i',
+            $regex: String(formattedValue).replace(/[\\^$*+?.()|[\]{}]/g, '\\$&'),
+          },
+        },
+      };
+    default:
+      return undefined;
+  }
 };

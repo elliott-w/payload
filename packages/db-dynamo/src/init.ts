@@ -9,10 +9,12 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 
 import { createConnection } from './connect.js';
+import { buildCollectionSchema } from './models/buildCollectionSchema.js';
 import { getTableName } from './utilities/getTableName.js';
 
 interface DynamoDBConfig {
   autoPluralization?: boolean;
+  collectionsSchemaOptions?: Record<string, any>;
   credentials?: {
     accessKeyId: string;
     secretAccessKey: string;
@@ -29,6 +31,17 @@ interface TableInfo {
       AttributeType: 'B' | 'N' | 'S';
     }>;
     BillingMode: 'PAY_PER_REQUEST';
+    GlobalSecondaryIndexes?: Array<{
+      IndexName: string;
+      KeySchema: Array<{
+        AttributeName: string;
+        KeyType: 'HASH' | 'RANGE';
+      }>;
+      Projection: {
+        NonKeyAttributes?: string[];
+        ProjectionType: 'ALL' | 'INCLUDE' | 'KEYS_ONLY';
+      };
+    }>;
     KeySchema: Array<{
       AttributeName: string;
       KeyType: 'HASH' | 'RANGE';
@@ -41,23 +54,9 @@ interface DynamoDBAdapter extends BaseDatabaseAdapter {
   autoPluralization: boolean;
   client: DynamoDBDocumentClient;
   collections: Record<string, TableInfo>;
+  collectionsSchemaOptions?: Record<string, any>;
   globals: Record<string, TableInfo>;
   versions: Record<string, TableInfo>;
-}
-
-// Helper function to build minimal table schema
-function buildMinimalTableSchema(isVersion = false): TableInfo['schema'] {
-  return {
-    AttributeDefinitions: [
-      { AttributeName: 'id', AttributeType: 'S' },
-      { AttributeName: 'createdAt', AttributeType: 'S' },
-    ],
-    BillingMode: 'PAY_PER_REQUEST',
-    KeySchema: [
-      { AttributeName: 'id', KeyType: 'HASH' },
-      { AttributeName: 'createdAt', KeyType: 'RANGE' },
-    ],
-  };
 }
 
 export async function init(payload: Payload): Promise<DynamoDBAdapter> {
@@ -82,11 +81,12 @@ export async function init(payload: Payload): Promise<DynamoDBAdapter> {
   // Process each collection
   payload.config.collections.forEach((collection: SanitizedCollectionConfig) => {
     const tableName = getTableName({ config: collection });
+    const schemaOptions = dbConfig.collectionsSchemaOptions?.[collection.slug];
 
-    // Store collection info with minimal schema
+    // Store collection info with schema
     collections[collection.slug] = {
       name: collection.slug,
-      schema: buildMinimalTableSchema(),
+      schema: buildCollectionSchema({ config: collection }),
       tableName,
     };
 
@@ -96,7 +96,7 @@ export async function init(payload: Payload): Promise<DynamoDBAdapter> {
 
       versions[collection.slug] = {
         name: `${collection.slug}_versions`,
-        schema: buildMinimalTableSchema(true),
+        schema: buildCollectionSchema({ config: collection, isVersion: true }),
         tableName: versionTableName,
       };
     }
@@ -108,7 +108,7 @@ export async function init(payload: Payload): Promise<DynamoDBAdapter> {
 
     globals[global.slug] = {
       name: global.slug,
-      schema: buildMinimalTableSchema(),
+      schema: buildCollectionSchema({ config: global }),
       tableName,
     };
 
@@ -118,7 +118,7 @@ export async function init(payload: Payload): Promise<DynamoDBAdapter> {
 
       versions[global.slug] = {
         name: `${global.slug}_versions`,
-        schema: buildMinimalTableSchema(true),
+        schema: buildCollectionSchema({ config: global, isVersion: true }),
         tableName: versionTableName,
       };
     }
@@ -135,6 +135,7 @@ export async function init(payload: Payload): Promise<DynamoDBAdapter> {
     autoPluralization: dbConfig.autoPluralization ?? true,
     client: docClient,
     collections,
+    collectionsSchemaOptions: dbConfig.collectionsSchemaOptions,
     destroy: async () => {
       // Cleanup logic here
     },

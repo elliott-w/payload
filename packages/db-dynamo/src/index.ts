@@ -45,6 +45,7 @@ import { rollbackTransaction } from './transactions/rollbackTransaction.js';
 import { getTableName } from './utilities/getTableName.js';
 
 export interface DynamoDBAdapter extends BaseDatabaseAdapter {
+  allowAdditionalKeys: boolean;
   autoPluralization: boolean;
   client: DynamoDBDocumentClient | null;
   collections: Record<string, TableInfo>;
@@ -72,6 +73,7 @@ export function dynamoDBAdapter({
 
     return createDatabaseAdapter<DynamoDBAdapter>({
       name: 'dynamodb',
+      allowAdditionalKeys: config.allowAdditionalKeys ?? false,
       autoPluralization: config.autoPluralization ?? true,
       client,
       collections,

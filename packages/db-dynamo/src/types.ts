@@ -38,6 +38,7 @@ import type {
 } from 'payload';
 
 export interface DynamoDBAdapterConfig {
+  allowAdditionalKeys?: boolean;
   autoPluralization?: boolean;
   collectionsSchemaOptions?: Record<string, unknown>;
   credentials?: {
