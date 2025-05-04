@@ -144,15 +144,15 @@ export type FieldToSchemaMap<TSchema> = {
   upload: FieldGeneratorFunction<TSchema, UploadField>;
 };
 
-export type MigrateUpArgs = {
+export interface MigrateUpArgs {
   payload: Payload;
-  req: any; // TODO: Import proper type from payload
-};
+  req: PayloadRequest;
+}
 
-export type MigrateDownArgs = {
+export interface MigrateDownArgs {
   payload: Payload;
-  req: any; // TODO: Import proper type from payload
-};
+  req: PayloadRequest;
+}
 
 export interface ConnectArgs {
   collections: Record<string, TableInfo>;

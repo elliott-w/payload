@@ -34,32 +34,24 @@ import type {
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { createDatabaseAdapter, defaultBeginTransaction } from 'payload';
 
-import type { DynamoDBAdapterConfig, DynamoDBSession } from './types.js';
+import type {
+  DynamoDBAdapter,
+  DynamoDBAdapterConfig,
+  DynamoDBSession,
+  TableInfo,
+} from './types.js';
 
 import { createConnection, destroyConnection } from './connect.js';
 import { buildTableSchema } from './models/buildTableSchema.js';
-import { create, createGlobal } from './operations/index.js';
+import { create } from './operations/create.js';
+import { createGlobal } from './operations/createGlobal.js';
 import { beginTransaction } from './transactions/beginTransaction.js';
 import { commitTransaction } from './transactions/commitTransaction.js';
 import { rollbackTransaction } from './transactions/rollbackTransaction.js';
 import { getTableName } from './utilities/getTableName.js';
 
-export interface DynamoDBAdapter extends BaseDatabaseAdapter {
-  allowAdditionalKeys: boolean;
-  autoPluralization: boolean;
-  client: DynamoDBDocumentClient | null;
-  collections: Record<string, TableInfo>;
-  globals: Record<string, TableInfo>;
-  lastEvaluatedKeys: Record<string, Record<number, Record<string, any>>>;
-  sessions: Record<string, DynamoDBSession>;
-  versions: Record<string, TableInfo>;
-}
-
-interface TableInfo {
-  name: string;
-  schema: Record<string, unknown>;
-  tableName: string;
-}
+// Remove duplicated TableInfo interface and export DynamoDBAdapter interface
+export { DynamoDBAdapter };
 
 export function dynamoDBAdapter({
   migrationDir: migrationDirArg = 'migrations',
@@ -73,19 +65,36 @@ export function dynamoDBAdapter({
     const sessions: Record<string, DynamoDBSession> = {};
     const lastEvaluatedKeys: Record<string, Record<number, Record<string, any>>> = {};
 
+    const getLastEvaluatedKey = async (collectionSlug: string, page: number) => {
+      return lastEvaluatedKeys[collectionSlug]?.[page];
+    };
+
+    const setLastEvaluatedKey = async (
+      collectionSlug: string,
+      page: number,
+      key: Record<string, any>
+    ) => {
+      if (!lastEvaluatedKeys[collectionSlug]) {
+        lastEvaluatedKeys[collectionSlug] = {};
+      }
+      lastEvaluatedKeys[collectionSlug][page] = key;
+    };
+
     return createDatabaseAdapter<DynamoDBAdapter>({
       name: 'dynamodb',
-      allowAdditionalKeys: config.allowAdditionalKeys ?? false,
+      allowAdditionalKeys: config.allowAdditionalKeys ?? true,
       autoPluralization: config.autoPluralization ?? true,
       client,
       collections,
       defaultIDType: 'text',
+      getLastEvaluatedKey,
       globals,
       lastEvaluatedKeys,
       migrationDir: migrationDirArg,
       packageName: '@payloadcms/db-dynamo',
       payload,
       sessions,
+      setLastEvaluatedKey,
       versions,
 
       // Transaction methods
