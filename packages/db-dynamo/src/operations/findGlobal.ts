@@ -1,29 +1,64 @@
-import type { FindGlobalArgs } from 'payload';
+import type { FindGlobal, FindGlobalArgs, TypeWithID } from 'payload';
 
-import { GetCommand } from '@aws-sdk/lib-dynamodb';
+import { QueryCommand } from '@aws-sdk/client-dynamodb';
 
-import type { GlobalWithSlug } from '../types.js';
+import type { DynamoDBAdapter } from '../index.js';
 
-import { formatError, generateGlobalKeys, TABLE_NAMES } from '../utilities/index.js';
+import { buildComplexQuery } from '../queries/buildComplexQuery.js';
+import { getGlobal } from '../utilities/getGlobal.js';
+import { transform } from '../utilities/transform.js';
 
-export const findGlobal = async <T>(
-  args: { client: any; global: GlobalWithSlug } & FindGlobalArgs
-): Promise<null | T> => {
-  const { client, global } = args;
+export const findGlobal: FindGlobal = async function findGlobal<T = TypeWithID>(
+  this: DynamoDBAdapter,
+  args: FindGlobalArgs
+): Promise<T> {
+  const { slug: globalSlug, locale, select, where = {} } = args;
 
-  try {
-    const keys = generateGlobalKeys(global.slug);
-    const command = new GetCommand({
-      Key: {
-        [keys.pk]: keys.pk,
-        [keys.sk]: keys.sk,
-      },
-      TableName: TABLE_NAMES.GLOBALS,
-    });
-
-    const result = await client.send(command);
-    return (result.Item || null) as null | T;
-  } catch (error: unknown) {
-    throw formatError(error);
+  if (!this.client) {
+    throw new Error('DynamoDB client not initialized');
   }
+
+  const { globalConfig, tableInfo } = getGlobal({ adapter: this, globalSlug });
+
+  // Build the query expression from the where clause using complex query builder
+  const queryExpression = await buildComplexQuery({
+    adapter: this,
+    collectionSlug: globalSlug,
+    fields: globalConfig.fields,
+    locale,
+    where: {
+      ...where,
+      globalType: { equals: globalSlug },
+    },
+  });
+
+  // Handle field selection
+  const projectionExpression = select
+    ? buildProjectionExpression(select as unknown as string[])
+    : undefined;
+
+  const params = {
+    TableName: tableInfo.name,
+    ...queryExpression,
+    Limit: 1,
+    ProjectionExpression: projectionExpression,
+  };
+
+  const result = await this.client.send(new QueryCommand(params));
+
+  if (!result.Items || result.Items.length === 0) {
+    throw new Error(`Global with slug ${globalSlug} not found`);
+  }
+
+  return transform({
+    adapter: this,
+    data: result.Items[0] as Record<string, unknown>,
+    fields: globalConfig.fields,
+    operation: 'read',
+  }) as unknown as T;
 };
+
+// Helper function to build projection expression from select
+function buildProjectionExpression(select: string[]): string {
+  return select.map((field) => `#${field}`).join(', ');
+}

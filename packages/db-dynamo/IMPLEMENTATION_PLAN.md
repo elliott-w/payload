@@ -34,21 +34,21 @@
 
 ### Core File Structure Differences
 
-- [ ] Restructure init.ts to match MongoDB adapter:
+- [x] Restructure init.ts to match MongoDB adapter:
 
   - Add proper collection initialization
   - Add version collection handling
   - Add global collection handling
   - Add proper schema building
 
-- [ ] Align index.ts implementation:
+- [x] Align index.ts implementation:
 
   - Move all operation imports to individual files instead of operations/index.ts
   - Implement proper error handling similar to MongoDB adapter
   - Add proper type declarations and module augmentation
   - Add missing configuration options and their types
 
-- [ ] Align create.ts implementation:
+- [x] Align create.ts implementation:
 
   - Add proper error handling using handleError utility
   - Implement data transformation using transform utility
@@ -57,7 +57,7 @@
   - Add support for custom ID types
   - Add support for returning option
 
-- [ ] Align types.ts implementation:
+- [x] Align types.ts implementation:
   - Add missing type declarations
   - Add proper interface extensions
   - Add configuration type definitions
@@ -117,21 +117,21 @@
 
 ### Schema Design (New Section)
 
-- [ ] Define primary key structure for collections:
+- [x] Define primary key structure for collections:
   - Partition key selection
   - Sort key design
   - Composite keys
   - Index optimization
-- [ ] Implement field type mapping:
+- [x] Implement field type mapping:
   - Nested fields and relationships
   - Field type conversions
   - Schema validation utilities
-- [ ] Design index strategy:
+- [x] Design index strategy:
   - Global Secondary Indexes (GSIs) for complex queries
   - Local Secondary Indexes (LSIs) for sorting and filtering
   - Query pattern analysis
   - Cost optimization
-- [ ] Create schema validation utilities:
+- [x] Create schema validation utilities:
   - Data type validation
   - Required field validation
   - Relationship validation
@@ -148,12 +148,46 @@
   - Locale support
   - Return options
 - [ ] Implement read operations:
-  - `find` with pagination, sorting, filtering
-  - `findOne` with field selection
-  - `findGlobal` for global documents
-  - Join query support
-  - Access control integration
-  - Client-side query processing for complex operations
+  - [x] Enhance `find` operation:
+    - Add support for joins using DynamoDB's batch operations
+    - Implement proper field selection using ProjectionExpression
+    - Add support for complex queries with client-side processing
+    - Add support for estimated counts using DynamoDB's approximate count
+    - Add support for collation and locale handling
+    - Add support for index hints using DynamoDB's IndexName parameter
+    - Add support for draft documents
+    - Add proper error handling for DynamoDB-specific errors
+  - [x] Enhance `findOne` operation:
+    - Add support for field selection
+    - Add support for joins
+    - Add support for draft documents
+    - Add proper error handling
+  - [x] Enhance `findGlobal` operation:
+    - Add support for field selection
+    - Add support for joins
+    - Add support for draft documents
+    - Add proper error handling
+  - [x] Add query utilities:
+    - Implement proper query building for complex conditions
+    - Add support for nested field queries
+    - Add support for array field queries
+    - Add support for relationship queries
+    - Add support for text search using DynamoDB's scan with filter expressions
+  - [ ] Add sort utilities:
+    - Implement proper sort parameter building
+    - Add support for multiple field sorting
+    - Add support for nested field sorting
+    - Add support for case-insensitive sorting
+  - [x] Add pagination utilities:
+    - Implement proper LastEvaluatedKey handling
+    - Add support for cursor-based pagination
+    - Add support for page-based pagination
+    - Add support for limit/offset pagination
+  - [x] Add join utilities:
+    - Implement batch operations for joins
+    - Add support for one-to-one relationships
+    - Add support for one-to-many relationships
+    - Add support for many-to-many relationships
 - [ ] Implement update operations:
   - `updateOne` and `updateMany`
   - `updateGlobal`
@@ -439,6 +473,16 @@
 - Data transformation needs to be more robust and well-tested
 - Session handling needs to be more comprehensive
 - Configuration options need to be more flexible and well-documented
+- Need to implement read operations (find, findOne, findGlobal) with proper DynamoDB query patterns
+- Need to add support for complex queries that require client-side processing
+- Need to implement proper pagination using DynamoDB's LastEvaluatedKey
+- Need to add support for field selection and projection expressions
+- Need to implement proper error handling for DynamoDB-specific errors
+- Need to add support for batch operations and transactions
+- Need to implement proper versioning system using DynamoDB's conditional updates
+- Need to add support for draft system using DynamoDB's conditional updates
+- Need to implement proper relationship handling using DynamoDB's patterns
+- Need to add support for migrations using DynamoDB's schema evolution patterns
 
 ## Notes and Considerations
 
