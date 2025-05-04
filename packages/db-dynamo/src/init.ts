@@ -9,12 +9,10 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 
 import { createConnection } from './connect.js';
-import { buildTableSchema } from './models/buildTableSchema.js';
 import { getTableName } from './utilities/getTableName.js';
 
 interface DynamoDBConfig {
   autoPluralization?: boolean;
-  collectionsSchemaOptions?: Record<string, Record<string, unknown>>;
   credentials?: {
     accessKeyId: string;
     secretAccessKey: string;
@@ -25,7 +23,17 @@ interface DynamoDBConfig {
 
 interface TableInfo {
   name: string;
-  schema: Record<string, unknown>;
+  schema: {
+    AttributeDefinitions: Array<{
+      AttributeName: string;
+      AttributeType: 'B' | 'N' | 'S';
+    }>;
+    BillingMode: 'PAY_PER_REQUEST';
+    KeySchema: Array<{
+      AttributeName: string;
+      KeyType: 'HASH' | 'RANGE';
+    }>;
+  };
   tableName: string;
 }
 
@@ -37,93 +45,19 @@ interface DynamoDBAdapter extends BaseDatabaseAdapter {
   versions: Record<string, TableInfo>;
 }
 
-// Helper function to build table schema for globals
-function buildGlobalTableSchema(
-  global: SanitizedGlobalConfig,
-  payload: Payload,
-  schemaOptions: Record<string, unknown> = {}
-): Record<string, unknown> {
-  // Convert global to collection-like structure for schema building
-  const collectionLikeConfig: SanitizedCollectionConfig = {
-    ...global,
-    access: {
-      admin: () => true,
-      create: () => true,
-      delete: () => true,
-      read: global.access?.read || (() => true),
-      readVersions: () => true,
-      unlock: () => true,
-      update: global.access?.update || (() => true),
-    },
-    admin: {
-      ...global.admin,
-      baseListFilter: () => ({}),
-      components: {
-        ...global.admin?.components,
-        afterList: [],
-        beforeList: [],
-        beforeListTable: [],
-        beforeListTableRow: [],
-        beforeListTableRowCell: [],
-        beforeListTableRowCellContent: [],
-        views: {
-          edit: {
-            actions: [],
-            Component: 'Edit',
-            meta: {
-              defaultOGImageType: 'off',
-              metadataBase: null,
-              titleSuffix: '',
-            },
-          },
-          list: {
-            actions: [],
-            Component: 'List',
-          },
-        },
-      },
-      defaultColumns: ['id', 'createdAt', 'updatedAt'],
-      disableCopyToLocale: false,
-      enableRichTextLink: false,
-      enableRichTextRelationship: false,
-      group: false,
-      hidden: false,
-      hideAPIURL: false,
-      listSearchableFields: [],
-      pagination: {
-        defaultLimit: 10,
-        limits: [10, 20, 50, 100],
-      },
-      useAsTitle: 'id',
-    },
-    auth: {} as any,
-    defaultPopulate: {},
-    defaultSort: '-createdAt',
-    disableDuplicate: false,
-    enableQueryPresets: false,
-    endpoints: [],
-    indexes: [],
-    joins: {},
-    labels: {
-      plural: global.label,
-      singular: global.label,
-    },
-    orderable: false,
-    polymorphicJoins: [],
-    sanitizedIndexes: [],
-    timestamps: true,
-    upload: {} as any,
-    versions: {
-      ...global.versions,
-      maxPerDoc: 100,
-    } as any,
+// Helper function to build minimal table schema
+function buildMinimalTableSchema(isVersion = false): TableInfo['schema'] {
+  return {
+    AttributeDefinitions: [
+      { AttributeName: 'id', AttributeType: 'S' },
+      { AttributeName: 'createdAt', AttributeType: 'S' },
+    ],
+    BillingMode: 'PAY_PER_REQUEST',
+    KeySchema: [
+      { AttributeName: 'id', KeyType: 'HASH' },
+      { AttributeName: 'createdAt', KeyType: 'RANGE' },
+    ],
   };
-
-  return buildTableSchema({
-    collection: collectionLikeConfig,
-    payload,
-    schemaOptions,
-  });
 }
 
 export async function init(payload: Payload): Promise<DynamoDBAdapter> {
@@ -147,21 +81,12 @@ export async function init(payload: Payload): Promise<DynamoDBAdapter> {
 
   // Process each collection
   payload.config.collections.forEach((collection: SanitizedCollectionConfig) => {
-    const schemaOptions = dbConfig.collectionsSchemaOptions?.[collection.slug] || {};
-
-    // Build the table schema for the collection
-    const schema = buildTableSchema({
-      collection,
-      payload,
-      schemaOptions,
-    });
-
     const tableName = getTableName({ config: collection });
 
-    // Store collection info
+    // Store collection info with minimal schema
     collections[collection.slug] = {
       name: collection.slug,
-      schema,
+      schema: buildMinimalTableSchema(),
       tableName,
     };
 
@@ -169,18 +94,9 @@ export async function init(payload: Payload): Promise<DynamoDBAdapter> {
     if (collection.versions) {
       const versionTableName = getTableName({ config: collection, versions: true });
 
-      // Build version table schema
-      const versionSchema = buildTableSchema({
-        collection,
-        payload,
-        schemaOptions: {
-          isVersion: true,
-        },
-      });
-
       versions[collection.slug] = {
         name: `${collection.slug}_versions`,
-        schema: versionSchema,
+        schema: buildMinimalTableSchema(true),
         tableName: versionTableName,
       };
     }
@@ -190,12 +106,9 @@ export async function init(payload: Payload): Promise<DynamoDBAdapter> {
   payload.config.globals.forEach((global) => {
     const tableName = getTableName({ config: global });
 
-    // Build global table schema
-    const schema = buildGlobalTableSchema(global, payload);
-
     globals[global.slug] = {
       name: global.slug,
-      schema,
+      schema: buildMinimalTableSchema(),
       tableName,
     };
 
@@ -203,14 +116,9 @@ export async function init(payload: Payload): Promise<DynamoDBAdapter> {
     if (global.versions) {
       const versionTableName = getTableName({ config: global, versions: true });
 
-      // Build global version table schema
-      const versionSchema = buildGlobalTableSchema(global, payload, {
-        isVersion: true,
-      });
-
       versions[global.slug] = {
         name: `${global.slug}_versions`,
-        schema: versionSchema,
+        schema: buildMinimalTableSchema(true),
         tableName: versionTableName,
       };
     }
