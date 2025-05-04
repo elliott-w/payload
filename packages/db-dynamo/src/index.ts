@@ -31,23 +31,33 @@ import type {
   UpdateVersionArgs,
 } from 'payload';
 
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { createDatabaseAdapter, defaultBeginTransaction } from 'payload';
 
-import type { DynamoDBAdapterConfig } from './types.js';
+import type { DynamoDBAdapterConfig, DynamoDBSession } from './types.js';
 
-import { connect, destroy } from './connect.js';
+import { createConnection, destroyConnection } from './connect.js';
+import { buildTableSchema } from './models/buildTableSchema.js';
 import { create, createGlobal } from './operations/index.js';
+import { beginTransaction } from './transactions/beginTransaction.js';
+import { commitTransaction } from './transactions/commitTransaction.js';
+import { rollbackTransaction } from './transactions/rollbackTransaction.js';
+import { getTableName } from './utilities/getTableName.js';
 
-export type DynamoDBAdapter = {
+export interface DynamoDBAdapter extends BaseDatabaseAdapter {
+  autoPluralization: boolean;
   client: DynamoDBDocumentClient | null;
-  collections: Record<string, any>;
-  defaultIDType: 'number' | 'text';
-  migrationDir: string;
+  collections: Record<string, TableInfo>;
+  globals: Record<string, TableInfo>;
+  sessions: Record<string, DynamoDBSession>;
+  versions: Record<string, TableInfo>;
+}
+
+interface TableInfo {
   name: string;
-  packageName: string;
-  payload: Payload;
-  versions: Record<string, any>;
-} & BaseDatabaseAdapter;
+  schema: Record<string, unknown>;
+  tableName: string;
+}
 
 export function dynamoDBAdapter({
   migrationDir: migrationDirArg = 'migrations',
@@ -55,34 +65,44 @@ export function dynamoDBAdapter({
 }: DynamoDBAdapterConfig = {}): DatabaseAdapterObj {
   function adapter({ payload }: { payload: Payload }) {
     let client: DynamoDBDocumentClient | null = null;
-    const collections: Record<string, any> = {};
-    const versions: Record<string, any> = {};
+    const collections: Record<string, TableInfo> = {};
+    const versions: Record<string, TableInfo> = {};
+    const globals: Record<string, TableInfo> = {};
+    const sessions: Record<string, DynamoDBSession> = {};
 
     return createDatabaseAdapter<DynamoDBAdapter>({
       name: 'dynamodb',
+      autoPluralization: config.autoPluralization ?? true,
       client,
       collections,
       defaultIDType: 'text',
+      globals,
       migrationDir: migrationDirArg,
       packageName: '@payloadcms/db-dynamo',
       payload,
+      sessions,
       versions,
 
       // Transaction methods
-      beginTransaction: async () => {
-        return Promise.resolve(defaultBeginTransaction() as unknown as null | number | string);
-      },
-      commitTransaction: async () => {
-        // Implementation will be added later
-      },
-      rollbackTransaction: async () => {
-        // Implementation will be added later
-      },
+      beginTransaction,
+      commitTransaction,
+      rollbackTransaction,
 
       // Connection methods
       connect: async () => {
-        client = await connect(config);
+        const dynamoClient = new DynamoDBClient({
+          credentials: config.credentials,
+          endpoint: config.endpoint,
+          region: config.region || 'us-east-1',
+        });
+        client = await createConnection({
+          collections,
+          globals,
+          versions,
+        });
       },
+
+      destroy: destroyConnection,
 
       // CRUD operations
       create: async <T>(args: CreateArgs): Promise<T> => {

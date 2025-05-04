@@ -8,10 +8,10 @@ import { formatError, generateCollectionKeys, TABLE_NAMES } from '../utilities/i
 
 export const create = async <T>(args: { client: any } & CreateArgs): Promise<T> => {
   const { client, collection, data } = args;
-  const collectionWithSlug = collection as CollectionWithSlug;
+  const collectionWithSlug = { slug: collection } as CollectionWithSlug;
 
   try {
-    const keys = generateCollectionKeys(collectionWithSlug.slug, data.id);
+    const keys = generateCollectionKeys(collectionWithSlug.slug, String(data.id));
     const timestamp = new Date().toISOString();
 
     const item = {

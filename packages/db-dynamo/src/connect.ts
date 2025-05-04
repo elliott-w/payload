@@ -1,32 +1,80 @@
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
+import type { CreateTableCommandInput } from '@aws-sdk/client-dynamodb';
+import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
+import type { Connect } from 'payload';
 
-import type { DynamoDBAdapterConfig, DynamoDBError } from './types.js';
+import { CreateTableCommand, DescribeTableCommand } from '@aws-sdk/client-dynamodb';
+
+import type { DynamoDBAdapter } from './index.js';
+import type { ConnectArgs, DynamoDBAdapterConfig, DynamoDBError } from './types.js';
+
+interface TableInfo {
+  name: string;
+  schema: Omit<CreateTableCommandInput, 'TableName'>;
+  tableName: string;
+}
+
+interface DynamoDBConnectArgs {
+  client: DynamoDBDocumentClient;
+  collections: Record<string, TableInfo>;
+  globals: Record<string, TableInfo>;
+  versions: Record<string, TableInfo>;
+}
 
 let client: DynamoDBDocumentClient | null = null;
 
-export const connect = async (config: DynamoDBAdapterConfig): Promise<DynamoDBDocumentClient> => {
-  if (client) {
-    return client;
+export const connect: Connect = async function connect(
+  this: DynamoDBAdapter,
+  args?: { hotReload?: boolean }
+): Promise<void> {
+  if (!this.client) {
+    return;
   }
 
-  try {
-    const dynamoDBClient = new DynamoDBClient({
-      credentials: config.credentials,
-      endpoint: config.endpoint,
-      region: config.region || 'us-east-1',
-    });
+  // Initialize all tables
+  const allTables = {
+    ...this.collections,
+    ...this.globals,
+    ...this.versions,
+  };
 
-    client = DynamoDBDocumentClient.from(dynamoDBClient, {
-      marshallOptions: {
-        removeUndefinedValues: true,
-      },
-    });
+  // Create tables if they don't exist
+  for (const [slug, table] of Object.entries(allTables)) {
+    try {
+      // Check if table exists
+      await this.client.send(
+        new DescribeTableCommand({
+          TableName: table.tableName,
+        })
+      );
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === 'ResourceNotFoundException') {
+        // Table doesn't exist, create it
+        const createTableInput: CreateTableCommandInput = {
+          AttributeDefinitions: [
+            {
+              AttributeName: 'id',
+              AttributeType: 'S',
+            },
+          ],
+          KeySchema: [
+            {
+              AttributeName: 'id',
+              KeyType: 'HASH',
+            },
+          ],
+          ProvisionedThroughput: {
+            ReadCapacityUnits: 5,
+            WriteCapacityUnits: 5,
+          },
+          TableName: table.tableName,
+          ...table.schema,
+        };
 
-    return client;
-  } catch (error: unknown) {
-    const dbError = error as DynamoDBError;
-    throw new Error(`Failed to connect to DynamoDB: ${dbError.message}`);
+        await this.client.send(new CreateTableCommand(createTableInput));
+      } else {
+        throw error;
+      }
+    }
   }
 };
 
@@ -36,3 +84,12 @@ export const destroy = async (): Promise<void> => {
     client = null;
   }
 };
+
+export async function createConnection(args: ConnectArgs): Promise<DynamoDBDocumentClient> {
+  // TODO: Implement actual connection logic
+  return {} as DynamoDBDocumentClient;
+}
+
+export async function destroyConnection(): Promise<void> {
+  // TODO: Implement cleanup logic
+}

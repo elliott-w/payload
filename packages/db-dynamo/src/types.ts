@@ -1,3 +1,4 @@
+import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import type {
   ArrayField,
   BaseDatabaseAdapter,
@@ -37,6 +38,8 @@ import type {
 } from 'payload';
 
 export interface DynamoDBAdapterConfig {
+  autoPluralization?: boolean;
+  collectionsSchemaOptions?: Record<string, unknown>;
   credentials?: {
     accessKeyId: string;
     secretAccessKey: string;
@@ -63,6 +66,13 @@ export interface CollectionWithSlug {
 
 export interface GlobalWithSlug {
   slug: string;
+}
+
+export interface DynamoDBSession {
+  db: DynamoDBDocumentClient;
+  inTransaction: () => boolean;
+  reject: () => Promise<void>;
+  resolve: () => Promise<void>;
 }
 
 export type BuildSchema<TSchema> = (args: {
@@ -122,3 +132,15 @@ export type MigrateDownArgs = {
   payload: Payload;
   req: any; // TODO: Import proper type from payload
 };
+
+export interface ConnectArgs {
+  collections: Record<string, TableInfo>;
+  globals: Record<string, TableInfo>;
+  versions: Record<string, TableInfo>;
+}
+
+export interface TableInfo {
+  name: string;
+  schema: Record<string, unknown>;
+  tableName: string;
+}
