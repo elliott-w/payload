@@ -55,6 +55,26 @@ export interface DynamoDBAdapterOptions {
   payload: Payload;
 }
 
+export interface DynamoDBAdapter extends BaseDatabaseAdapter {
+  allowAdditionalKeys: boolean;
+  autoPluralization: boolean;
+  client: DynamoDBDocumentClient | null;
+  collections: Record<string, TableInfo>;
+  getLastEvaluatedKey: (
+    collectionSlug: string,
+    page: number
+  ) => Promise<Record<string, any> | undefined>;
+  globals: Record<string, TableInfo>;
+  lastEvaluatedKeys: Record<string, Record<number, Record<string, any>>>;
+  sessions: Record<string, DynamoDBSession>;
+  setLastEvaluatedKey: (
+    collectionSlug: string,
+    page: number,
+    key: Record<string, any>
+  ) => Promise<void>;
+  versions: Record<string, TableInfo>;
+}
+
 export interface DynamoDBError extends Error {
   code?: string;
   message: string;

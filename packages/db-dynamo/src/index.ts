@@ -50,6 +50,7 @@ export interface DynamoDBAdapter extends BaseDatabaseAdapter {
   client: DynamoDBDocumentClient | null;
   collections: Record<string, TableInfo>;
   globals: Record<string, TableInfo>;
+  lastEvaluatedKeys: Record<string, Record<number, Record<string, any>>>;
   sessions: Record<string, DynamoDBSession>;
   versions: Record<string, TableInfo>;
 }
@@ -70,6 +71,7 @@ export function dynamoDBAdapter({
     const versions: Record<string, TableInfo> = {};
     const globals: Record<string, TableInfo> = {};
     const sessions: Record<string, DynamoDBSession> = {};
+    const lastEvaluatedKeys: Record<string, Record<number, Record<string, any>>> = {};
 
     return createDatabaseAdapter<DynamoDBAdapter>({
       name: 'dynamodb',
@@ -79,6 +81,7 @@ export function dynamoDBAdapter({
       collections,
       defaultIDType: 'text',
       globals,
+      lastEvaluatedKeys,
       migrationDir: migrationDirArg,
       packageName: '@payloadcms/db-dynamo',
       payload,
