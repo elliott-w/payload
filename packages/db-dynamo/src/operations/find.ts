@@ -1,14 +1,34 @@
-import type { Find, FindArgs, JoinQuery, PaginatedDocs, SelectType, TypeWithID } from 'payload';
+import type { AttributeValue } from '@aws-sdk/client-dynamodb';
+import type {
+  Find,
+  FindArgs,
+  JoinQuery,
+  PaginatedDocs,
+  RelationshipField,
+  SelectType,
+  TypeWithID,
+} from 'payload';
 
 import { BatchGetItemCommand, QueryCommand, ScanCommand } from '@aws-sdk/client-dynamodb';
+import { flattenAllFields } from 'payload';
 
 import type { DynamoDBAdapter } from '../index.js';
 
 import { buildComplexQuery } from '../queries/buildComplexQuery.js';
+import { buildJoin, processJoinResults } from '../queries/buildJoin.js';
+import { buildPagination, getPaginationInfo } from '../queries/buildPagination.js';
+import { buildProjection } from '../queries/buildProjection.js';
 import { buildSortParam } from '../queries/buildSortParam.js';
 import { getCollection } from '../utilities/getCollection.js';
-import { getPaginationMetadata, handlePagination } from '../utilities/pagination.js';
 import { transform } from '../utilities/transform.js';
+
+type Select = Record<string, boolean> | string[];
+
+interface JoinData {
+  items: Record<string, AttributeValue>[];
+  joinField: RelationshipField;
+  locale?: string;
+}
 
 export const find: Find = async function find<T = TypeWithID>(
   this: DynamoDBAdapter,
@@ -31,65 +51,66 @@ export const find: Find = async function find<T = TypeWithID>(
   }
 
   const { collectionConfig, tableInfo } = getCollection({ adapter: this, collectionSlug });
+  const flattenedFields = flattenAllFields({ cache: true, fields: collectionConfig.fields });
 
-  // Convert sort array to object format if needed
-  const sortParam = Array.isArray(sort)
-    ? sort.reduce((acc, field) => ({ ...acc, [field]: 'asc' }), {})
-    : sort;
-
+  // Build sort parameters
   const sortParams = buildSortParam({
     adapter: this,
     config: this.payload,
-    fields: collectionConfig.fields,
-    sort: sortParam,
+    fields: flattenedFields,
+    locale,
+    sort,
   });
 
-  // Build the query expression from the where clause using complex query builder
-  const queryExpression = await buildComplexQuery({
+  // Build the query expression
+  const queryParams = await buildComplexQuery({
     adapter: this,
     collectionSlug,
-    fields: collectionConfig.fields,
+    fields: flattenedFields,
     locale,
     where,
   });
 
-  // Handle field selection
-  const projectionExpression = select
-    ? buildProjectionExpression(select as unknown as string[])
-    : undefined;
-
-  // Determine if we should use Query or Scan based on the query conditions
-  const useQuery = canUseQuery(queryExpression, sortParams);
-
-  // Get pagination parameters
-  const pagination = handlePagination({
+  // Build projection expression
+  const { ExpressionAttributeNames: projectionNames, ProjectionExpression } = buildProjection({
     adapter: this,
-    collectionSlug,
+    config: this.payload,
+    fields: flattenedFields,
+    locale,
+    select: select as Select,
+  });
+
+  // Build pagination parameters
+  const paginationParams = buildPagination({
+    adapter: this,
+    config: this.payload,
     limit,
     page,
   });
 
+  // Combine all parameters
   const params = {
     TableName: tableInfo.name,
     ...sortParams,
-    ...queryExpression,
-    ExclusiveStartKey: pagination.ExclusiveStartKey,
-    Limit: limit,
-    ProjectionExpression: projectionExpression,
-    ...(draftsEnabled
-      ? { FilterExpression: 'attribute_not_exists(_status) OR _status = :published' }
-      : {}),
+    ...queryParams,
+    ...paginationParams,
+    ExpressionAttributeNames: {
+      ...queryParams.ExpressionAttributeNames,
+      ...projectionNames,
+    },
+    ProjectionExpression,
   };
 
+  // Add draft status filter if enabled
   if (draftsEnabled) {
-    params.ExpressionAttributeValues = {
-      ...params.ExpressionAttributeValues,
-      ':published': { S: 'published' },
-    };
+    params.FilterExpression = params.FilterExpression
+      ? `${params.FilterExpression} AND attribute_not_exists(_status)`
+      : 'attribute_not_exists(_status)';
   }
 
+  // Execute query
   let result;
-  if (useQuery) {
+  if (sortParams.IndexName) {
     result = await this.client.send(new QueryCommand(params));
   } else {
     result = await this.client.send(new ScanCommand(params));
@@ -110,126 +131,141 @@ export const find: Find = async function find<T = TypeWithID>(
     };
   }
 
-  // Handle joins if specified
-  let docs = result.Items.map((item: any) => {
-    const transformed = transform(item);
-    return transformed as unknown as T;
-  });
+  // Transform and process results
+  let docs = result.Items.map((item) =>
+    transform({
+      adapter: this,
+      data: item,
+      fields: collectionConfig.fields,
+      operation: 'read',
+    })
+  ) as T[];
 
+  // Process joins if specified
   if (Object.keys(joins).length > 0) {
-    docs = await processJoins(this, docs, joins as Record<string, any>, collectionConfig);
+    for (const [path, joinConfig] of Object.entries(joins)) {
+      const { BatchGetItemInput, joinField } = await buildJoin({
+        adapter: this,
+        config: this.payload,
+        fields: flattenedFields,
+        locale,
+        path,
+      });
+
+      // Get related IDs from the current documents
+      const relatedIds = docs
+        .map((doc): string | string[] | undefined => {
+          const segments = path.split('.');
+          let value = doc as Record<string, any>;
+          for (const segment of segments) {
+            if (value && typeof value === 'object' && segment in value) {
+              value = value[segment];
+            } else {
+              return undefined;
+            }
+          }
+          return value as string | string[];
+        })
+        .filter((value): value is string | string[] => {
+          if (!value) {
+            return false;
+          }
+          if (typeof value === 'string') {
+            return true;
+          }
+          if (Array.isArray(value)) {
+            return value.every((item) => typeof item === 'string');
+          }
+          return false;
+        })
+        .reduce<string[]>((acc, value) => {
+          if (typeof value === 'string') {
+            acc.push(value);
+          } else if (Array.isArray(value)) {
+            acc.push(...value);
+          }
+          return acc;
+        }, []);
+
+      if (relatedIds.length > 0 && joinField.type === 'relationship' && joinField.relationTo) {
+        const relationTo =
+          typeof joinField.relationTo === 'string' ? joinField.relationTo : joinField.relationTo[0];
+
+        if (!BatchGetItemInput.RequestItems) {
+          BatchGetItemInput.RequestItems = {};
+        }
+
+        if (relationTo) {
+          BatchGetItemInput.RequestItems[relationTo] = {
+            Keys: relatedIds.map((id) => ({
+              id: { S: id },
+            })),
+          };
+        }
+
+        const joinResult = await this.client.send(new BatchGetItemCommand(BatchGetItemInput));
+        if (!joinResult.Responses) {
+          continue;
+        }
+
+        const relatedDocs = relationTo ? joinResult.Responses[relationTo] || [] : [];
+
+        // Process join results
+        const processedDocs = processJoinResults({
+          items: relatedDocs,
+          joinField,
+          locale,
+        });
+
+        // Map related docs to their IDs
+        const relatedDocsMap = processedDocs.reduce<Record<string, any>>((acc, doc) => {
+          if (doc?.id) {
+            acc[doc.id] = doc;
+          }
+          return acc;
+        }, {});
+
+        // Update original docs with related data
+        docs = docs.map((doc) => {
+          const segments = path.split('.');
+          let current = doc as Record<string, any>;
+          let parent = current;
+
+          for (let i = 0; i < segments.length - 1; i++) {
+            const segment = segments[i];
+            if (current && typeof current === 'object' && segment && segment in current) {
+              parent = current;
+              current = current[segment];
+            } else {
+              return doc;
+            }
+          }
+
+          const lastSegment = segments[segments.length - 1];
+          if (lastSegment && current && typeof current === 'object' && lastSegment in current) {
+            const value = current[lastSegment];
+            if (Array.isArray(value)) {
+              parent[lastSegment] = value.map((id: string) => relatedDocsMap[id] || id);
+            } else if (value) {
+              parent[lastSegment] = relatedDocsMap[value] || value;
+            }
+          }
+          return doc;
+        });
+      }
+    }
   }
 
-  // Update pagination state with the last evaluated key
-  handlePagination({
-    adapter: this,
-    collectionSlug,
+  // Get pagination info
+  const paginationInfo = getPaginationInfo({
+    items: docs,
     lastEvaluatedKey: result.LastEvaluatedKey,
     limit,
     page,
   });
 
-  // Get pagination metadata
-  const paginationMetadata = getPaginationMetadata(
-    result.Count || 0,
-    page,
-    limit,
-    Boolean(result.LastEvaluatedKey)
-  );
-
   return {
-    docs,
-    hasNextPage: pagination.hasNextPage,
-    hasPrevPage: pagination.hasPrevPage,
-    limit,
-    nextPage: pagination.nextPage,
-    page,
-    pagingCounter: pagination.pagingCounter,
-    prevPage: pagination.prevPage,
-    totalDocs: paginationMetadata.totalDocs,
-    totalPages: paginationMetadata.totalPages,
+    ...paginationInfo,
+    pagingCounter: (page - 1) * limit + 1,
   };
 };
-
-// Helper function to build projection expression from select
-function buildProjectionExpression(select: string[]): string {
-  return select.map((field) => `#${field}`).join(', ');
-}
-
-// Helper function to determine if we can use Query instead of Scan
-function canUseQuery(queryExpression: any, sortParams: any): boolean {
-  // We can use Query if:
-  // 1. We have a KeyConditionExpression (primary key condition)
-  // 2. The sort key matches our sort parameters
-  return Boolean(
-    queryExpression.KeyConditionExpression &&
-      (!sortParams.IndexName || sortParams.IndexName === 'primary')
-  );
-}
-
-// Helper function to process joins
-async function processJoins(
-  adapter: DynamoDBAdapter,
-  docs: any[],
-  joins: Record<string, any>,
-  collectionConfig: any
-): Promise<any[]> {
-  const joinPromises = Object.entries(joins).map(async ([relation, joinConfig]) => {
-    const relationField = collectionConfig.fields.find((f: any) => f.name === relation);
-    if (!relationField) {
-      return;
-    }
-
-    const relatedCollection = relationField.relationTo;
-    if (!relatedCollection) {
-      return;
-    }
-
-    const relatedIds = docs
-      .map((doc) => doc[relation])
-      .filter(Boolean)
-      .flat();
-
-    if (relatedIds.length === 0) {
-      return;
-    }
-
-    const { tableInfo } = getCollection({ adapter, collectionSlug: relatedCollection });
-
-    if (!adapter.client) {
-      throw new Error('DynamoDB client not initialized');
-    }
-
-    const batchGetParams = {
-      RequestItems: {
-        [tableInfo.name]: {
-          Keys: relatedIds.map((id) => ({ id: { S: id } })),
-        },
-      },
-    };
-
-    const result = await adapter.client.send(new BatchGetItemCommand(batchGetParams));
-    const relatedDocs = result.Responses?.[tableInfo.name] || [];
-
-    // Map related docs to their IDs for quick lookup
-    const relatedDocsMap = relatedDocs.reduce((acc: Record<string, any>, doc: any) => {
-      const transformed = transform(doc) as any;
-      if (transformed?.id) {
-        acc[transformed.id] = transformed;
-      }
-      return acc;
-    }, {});
-
-    // Update original docs with related data
-    docs.forEach((doc) => {
-      if (doc[relation]) {
-        doc[relation] = Array.isArray(doc[relation])
-          ? doc[relation].map((id) => relatedDocsMap[id])
-          : relatedDocsMap[doc[relation]];
-      }
-    });
-  });
-
-  await Promise.all(joinPromises);
-  return docs;
-}
