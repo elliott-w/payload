@@ -39,3 +39,5 @@ This project follows a monorepo structure with the following key directories:
 - The MongoDB adapter serves as a reference but should not be copied directly
 - Pay special attention to DynamoDB's specific requirements and limitations
 - Ensure all implementations follow Payload CMS's patterns and conventions
+- All relative file imports must have a .js suffix
+- Avoid the use of barrel (index.ts)
