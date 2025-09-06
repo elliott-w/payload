@@ -1,5 +1,7 @@
 import type { CollectionConfig } from 'payload'
 
+import { fullEditor } from './editors.js'
+
 export const postsSlug = 'posts'
 
 export const PostsCollection: CollectionConfig = {
@@ -13,14 +15,9 @@ export const PostsCollection: CollectionConfig = {
       type: 'text',
     },
     {
-      name: 'array',
-      type: 'array',
-      fields: [
-        {
-          name: 'title',
-          type: 'text',
-        },
-      ],
+      name: 'content',
+      type: 'richText',
+      editor: fullEditor,
     },
   ],
 }
