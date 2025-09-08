@@ -45,6 +45,8 @@ export async function resolveJoins({
   projection,
   versions = false,
 }: ResolveJoinsArgs): Promise<void> {
+  console.log('resolveJoins')
+  console.log('joins', joins)
   // Early return if no joins are specified or no documents to process
   if (!joins || docs.length === 0) {
     return

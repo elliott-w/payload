@@ -8,6 +8,7 @@ export const MediaCollection: CollectionConfig = {
     create: () => true,
     read: () => true,
   },
+  folders: true,
   fields: [],
   upload: {
     crop: true,

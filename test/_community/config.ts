@@ -19,6 +19,9 @@ export default buildConfigWithDefaults({
       baseDir: path.resolve(dirname),
     },
   },
+  folders: {
+    browseByFolder: false,
+  },
   editor: lexicalEditor({}),
   globals: [
     // ...add more globals here

@@ -70,21 +70,27 @@ export interface Config {
     posts: Post;
     media: Media;
     users: User;
+    'payload-folders': FolderInterface;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
   };
-  collectionsJoins: {};
+  collectionsJoins: {
+    'payload-folders': {
+      documentsAndFolders: 'payload-folders' | 'media';
+    };
+  };
   collectionsSelect: {
     posts: PostsSelect<false> | PostsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     users: UsersSelect<false> | UsersSelect<true>;
+    'payload-folders': PayloadFoldersSelect<false> | PayloadFoldersSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
   };
   db: {
-    defaultIDType: number;
+    defaultIDType: string;
   };
   globals: {
     menu: Menu;
@@ -124,7 +130,7 @@ export interface UserAuthOperations {
  * via the `definition` "posts".
  */
 export interface Post {
-  id: number;
+  id: string;
   title?: string | null;
   content?: {
     root: {
@@ -149,7 +155,8 @@ export interface Post {
  * via the `definition` "media".
  */
 export interface Media {
-  id: number;
+  id: string;
+  folder?: (string | null) | FolderInterface;
   updatedAt: string;
   createdAt: string;
   url?: string | null;
@@ -190,10 +197,36 @@ export interface Media {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-folders".
+ */
+export interface FolderInterface {
+  id: string;
+  name: string;
+  folder?: (string | null) | FolderInterface;
+  documentsAndFolders?: {
+    docs?: (
+      | {
+          relationTo?: 'payload-folders';
+          value: string | FolderInterface;
+        }
+      | {
+          relationTo?: 'media';
+          value: string | Media;
+        }
+    )[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
+  folderType?: 'media'[] | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "users".
  */
 export interface User {
-  id: number;
+  id: string;
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -217,24 +250,28 @@ export interface User {
  * via the `definition` "payload-locked-documents".
  */
 export interface PayloadLockedDocument {
-  id: number;
+  id: string;
   document?:
     | ({
         relationTo: 'posts';
-        value: number | Post;
+        value: string | Post;
       } | null)
     | ({
         relationTo: 'media';
-        value: number | Media;
+        value: string | Media;
       } | null)
     | ({
         relationTo: 'users';
-        value: number | User;
+        value: string | User;
+      } | null)
+    | ({
+        relationTo: 'payload-folders';
+        value: string | FolderInterface;
       } | null);
   globalSlug?: string | null;
   user: {
     relationTo: 'users';
-    value: number | User;
+    value: string | User;
   };
   updatedAt: string;
   createdAt: string;
@@ -244,10 +281,10 @@ export interface PayloadLockedDocument {
  * via the `definition` "payload-preferences".
  */
 export interface PayloadPreference {
-  id: number;
+  id: string;
   user: {
     relationTo: 'users';
-    value: number | User;
+    value: string | User;
   };
   key?: string | null;
   value?:
@@ -267,7 +304,7 @@ export interface PayloadPreference {
  * via the `definition` "payload-migrations".
  */
 export interface PayloadMigration {
-  id: number;
+  id: string;
   name?: string | null;
   batch?: number | null;
   updatedAt: string;
@@ -288,6 +325,7 @@ export interface PostsSelect<T extends boolean = true> {
  * via the `definition` "media_select".
  */
 export interface MediaSelect<T extends boolean = true> {
+  folder?: T;
   updatedAt?: T;
   createdAt?: T;
   url?: T;
@@ -358,6 +396,18 @@ export interface UsersSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-folders_select".
+ */
+export interface PayloadFoldersSelect<T extends boolean = true> {
+  name?: T;
+  folder?: T;
+  documentsAndFolders?: T;
+  folderType?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents_select".
  */
 export interface PayloadLockedDocumentsSelect<T extends boolean = true> {
@@ -393,7 +443,7 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
  * via the `definition` "menu".
  */
 export interface Menu {
-  id: number;
+  id: string;
   globalText?: string | null;
   updatedAt?: string | null;
   createdAt?: string | null;
